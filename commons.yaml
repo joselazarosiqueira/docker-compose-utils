@@ -1,88 +1,135 @@
 version: '3'
 services:
 
- postgres:
-  image: postgres:9.5
-  container_name: 'postgres'
-  environment:
-    POSTGRES_USER: default-user
-    POSTGRES_PASSWORD: 123456
-    POSTGRES_DB: db-teste
-  ports:
-    - "5432:5432"
-  volumes:
-    - ./postgres/pg-data:/var/lib/postgresql/data
-  deploy:
-    replicas: 1
-    restart_policy:
-      condition: on-failure
-      max_attempts: 5
-    placement:
-      constraints: [node.role != manager]
-  networks:
-    - commons_network
+  nginx:
+    image: nginx
+    container_name: 'nginx'
+    volumes:
+    - ./nginx/templates:/etc/nginx/templates
+    ports:
+    - "8080:80"
+    environment:
+    - NGINX_HOST=foobar.com
+    - NGINX_PORT=80
+  
+  postgres:
+    image: postgres:9.5
+    container_name: 'postgres'
+    environment:
+      POSTGRES_USER: default-user
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: db-teste
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres/pg-data:/var/lib/postgresql/data
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        max_attempts: 5
+      placement:
+        constraints: [node.role != manager]
+    networks:
+      - commons_network
     
- mysql:
-  image: mysql:5.7
-  container_name: 'mysql'
-  environment:
-    MYSQL_ROOT_PASSWORD: 123456
-    MYSQL_DATABASE: db-teste
-  ports:
-    - "3306:3306"
-  volumes:
-    - ./mysql/mysql-data:/var/lib/mysql
-  networks:
+  mysql:
+    image: mysql:5.7
+    container_name: 'mysql'
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: db-teste
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mysql/mysql-data:/var/lib/mysql
+    networks:
+      - commons_network
+
+  redis:
+    image: redis
+    container_name: 'redis'
+    ports:
+      - "6379:6379"    
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints: [node.role != manager]
+    command: 
+      --stop-writes-on-bgsave-error no
+      --dir "./"
+      --save
+    networks:
+      - commons_network
+
+  activemq:
+    image: rmohr/activemq:latest
+    container_name: 'activemq'
+    #user: admin
+    #password: admin
+    ports:
+      - "61616:61616"
+      - "8161:8161"    
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints: [node.role != manager]
+    networks:
     - commons_network
 
- redis:
-  image: redis
-  container_name: 'redis'
-  ports:
-    - "6379:6379"    
-  deploy:
-    replicas: 1
-    restart_policy:
-      condition: on-failure
-    placement:
-      constraints: [node.role != manager]
-  command: 
-    --stop-writes-on-bgsave-error no
-    --dir "./"
-    --save
-  networks:
-    - commons_network
+  rabbitmq:
+    image: rabbitmq:3.8-management-alpine
+    container_name: 'rabbitmq'
+    #user: guest
+    #password: guest
+    ports:
+      - 5672:5672
+      - 15672:15672
+    volumes:
+      - ./rabbitmq/data/:/var/lib/rabbitmq/
+      - ./rabbitmq/log/:/var/log/rabbitmq
+    networks:
+      - commons_network
 
- activemq:
-  image: rmohr/activemq:latest
-  container_name: 'activemq'
-  #user: admin
-  #password: admin
-  ports:
-    - "61616:61616"
-    - "8161:8161"    
-  deploy:
-    replicas: 1
-    restart_policy:
-      condition: on-failure
-    placement:
-      constraints: [node.role != manager]
-  networks:
-  - commons_network
+  mongo-express:
+    image: mongo-express
+    container_name: 'mongo-express'
+    ports:
+      - 8081:8081
+    depends_on:
+      - mongo
+    environment:
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: admin
+      ME_CONFIG_MONGODB_PORT: 27017
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: 123456
+      ME_CONFIG_OPTIONS_EDITORTHEME: ambiance
+    links:
+      - mongo
+    volumes: 
+      - ./mongoDB:/data/db
+    networks:
+      - commons_network
 
- rabbitmq:
-  image: rabbitmq:3.8-management-alpine
-  container_name: 'rabbitmq'
-  #user: guest
-  #password: guest
-  ports:
-    - 5672:5672
-    - 15672:15672
-  volumes:
-    - ./rabbitmq/data/:/var/lib/rabbitmq/
-    - ./rabbitmq/log/:/var/log/rabbitmq
-  networks:
-    - commons_network
+  mongo:
+    image: mongo
+    container_name: 'mongo'
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: 123456
+      MONGO_INITDB_DATABASE: auth
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./mongoDB:/data/db
+    networks:
+      - commons_network
+
 networks:
   commons_network:
     driver: bridge
